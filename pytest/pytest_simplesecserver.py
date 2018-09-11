@@ -20,6 +20,7 @@ async def secure_message_server(reader, writer):
 
     if (Plain == "__EXIT__"):
         server.close()
+        loop.stop()
         loop.close()
         
     encrpttxt = password.encrypt(plaintxt)
