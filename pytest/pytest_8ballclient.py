@@ -2,31 +2,31 @@ import asyncio
 import socket
 import sys
 import time
+import os.path
 
 port = sys.argv[1]
+plaintext = sys.argv[2]
 Addre = socket.gethostname()
+timenow = str(time.time())
 async def eightball_client(loop):
     reader, writer = await asyncio.open_connection(Addre, port,
                                                    loop=loop)
-    
-    index = 0
-    timenow = str(time.time())
-    plaintext = input("please write your question/ nothing to exit: \n")
-    while (plaintext):
-        writer.write(plaintext.encode())
-        respone = await reader.read(100)
-        answer = respone.decode()
-        print (answer)
+    writer.write(plaintext.encode())
+    respone = await reader.read(100)
+    answer = respone.decode()
+    print (answer)
 
-        indextxt = index+1
-        textfile = open(f"8ball_response_{indextxt}.txt", "w")
-        textfile.write(f"Timestamp : {timenow}\n")
-        textfile.write(f"Question : {plaintext}\n")
-        textfile.write(f"Answer : {answer}")
-        textfile.close()
-
-        plaintext = input("please write your question/ nothing to exit: \n")
-        index = index+1
+    counter = 1
+    while (True):
+        if (os.path.isfile("./8ball_response_"+str(counter)+".txt")):
+            counter = counter + 1
+        else:
+            textfile = open(f"8ball_response_"+str(counter)+".txt", "w")
+            textfile.write(f"Timestamp : {timenow}\n")
+            textfile.write(f"Question : {plaintext}\n")
+            textfile.write(f"Answer : {answer}")
+            textfile.close()
+            break
 
     print('Close the socket')
     writer.close()
