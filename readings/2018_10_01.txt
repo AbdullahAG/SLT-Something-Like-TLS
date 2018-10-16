@@ -1,0 +1,5 @@
+It is interesting to read about Social networking as a topology.
+Also, 
+After reading the DNS section it says that "Older DNS servers would accept additional records without checking;
+ if they asked your server where X was, you could volunteer an IP address for you as well," how a user can volunteer 
+such records?
