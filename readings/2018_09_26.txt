@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 In the TCP/IP Attacks, Defenses and Security Tools document,
 ICMP Attacks section. The ICMP defenses it says "Checking if the packet
 belongs to the same connection or not," yet I though ICMP packets, like "ping"
@@ -8,4 +9,16 @@ routers the packets is taking?
 
 Finally, the last defense, "Replay packets should be accepted at a particular time,"
 does it mean that there are a fixed time after sending the packet that the Replay packet
+=======
+In the TCP/IP Attacks, Defenses and Security Tools document,
+ICMP Attacks section. The ICMP defenses it says "Checking if the packet
+belongs to the same connection or not," yet I though ICMP packets, like "ping"
+wouldn't need to establish a connection before hand.
+
+Also, "Changes in routes" for the second defense, is it referring to the
+routers the packets is taking?
+
+Finally, the last defense, "Replay packets should be accepted at a particular time,"
+does it mean that there are a fixed time after sending the packet that the Replay packet
+>>>>>>> efa1ce2d4b6ea7864ee0d562fb72f7bc694274e1
 will be checked?

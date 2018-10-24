@@ -36,6 +36,7 @@ class RIP(StackingProtocol):
 		self.recHand = None#recieved message from hanshake
 		self.timHand = None#timer for hanshake
 		self.firstCon = True#first packet flag
+		self.lastPacket = None#lastPacket in order in the recieve end
 		self._deserializer = RIPPacket.Deserializer()
 		
 		
@@ -44,6 +45,7 @@ class RIP(StackingProtocol):
 		print("Received a connection from {}".format(transport.get_extra_info("peername")))
 		self.transport = transport
 		self.PassTransport =  ATPtransport(self.transport, self)
+		import pdb; pdb.set_trace()
 		print("im here in connection made")
 		loop = asyncio.new_event_loop()
 		asyncio.set_event_loop(loop)
@@ -97,6 +99,7 @@ class RIP(StackingProtocol):
 					if self.sentBoxData[-1][0]+len(self.sentBoxData[-1][1].Data) == atppacket.AckNo:
 						finTimer = self.sentBoxData[-1][2]
 						finTimer.cancel()
+						self.sentBoxData[-1] = ((self.sentBoxData[-1][0], self.sentBoxData[-1][1], finTimer, True))
 						self.transport.close()
 							
 				if self.stateCon == 1:#SYN ACK ACK and Connection is established((server))
@@ -127,7 +130,6 @@ class RIP(StackingProtocol):
 				for n in range(len(self.recieveBoxData)):
 					if self.recieveBoxData[n][2] is False and "DATA" in self.recieveBoxData[n][1].Type.upper():#Acked is True
 						return
-					
 				self.transport.close()#close when you get an Ack for the fin
 			
 			else:
@@ -175,9 +177,11 @@ class RIP(StackingProtocol):
 		#sort
 		self.recieveBoxData.sort()
 		#print the list
+		indexx = 0
 		completeFlag = True
 		for seq, packet, acked in self.recieveBoxData:
-			print("Seq= {}, Packet= {}, Acked= {}".format(seq, packet, acked))
+			print("recieveBoxList:----Seq= {}, Acked= {}, Next= {}".format(seq, acked, seq+len(packet.Data)))
+			
 			if acked is False and packet.Type.upper() == "DATA":
 				completeFlag = False
 
@@ -187,41 +191,39 @@ class RIP(StackingProtocol):
 			
 		print("Number of Packets are: {}".format(len(self.recieveBoxData)))		
 		#send to higher protocol and remove packets
-		lastPacket = None
 		appData = b""
 		index = 1
 		if len(self.recieveBoxData) != 1:
 			for index in range(len(self.recieveBoxData)):
 				pefIndex = index - 1
-				if self.recieveBoxData[index][2] is False and self.recieveBoxData[index][0] == self.recieveBoxData[pefIndex][0] + len(self.recieveBoxData[pefIndex][1].Data):
+				#if self.recieveBoxData[index][2] is False and self.recieveBoxData[index][0] == self.recieveBoxData[pefIndex][0] + len(self.recieveBoxData[pefIndex][1].Data):
+				if self.recieveBoxData[index][2] is False and self.recieveBoxData[index][0] == (self.recieveBoxData[pefIndex][0] + len(self.recieveBoxData[pefIndex][1].Data)) and self.recieveBoxData[pefIndex][2]:
 					#send current packet data to application	
-					lastPacket = self.recieveBoxData[index][1]
+					self.lastPacket = self.recieveBoxData[index][1]
 					self.recieveBoxData[index] = (self.recieveBoxData[index][0], self.recieveBoxData[index][1], True)#because tuples dont support update, so reassigment to the index with Acked True
 					print(" A: This acked packet seq no is {}".format(self.recieveBoxData[index][0]))
 					appData = appData + self.recieveBoxData[index][1].Data#add data
-					index = index + 1
+					#index = index + 1
 		else:
 			self.recieveBoxData[0] = (self.recieveBoxData[0][0], self.recieveBoxData[0][1], True)
-			lastPacket = self.recieveBoxData[0][1]
-			appData = lastPacket.Data
+			self.lastPacket = self.recieveBoxData[0][1]
+			appData = self.lastPacket.Data
 		#acked all data packets
-		self.sendAck(lastPacket)
+		self.sendAck(self.lastPacket)
 		#print
-		for seq, packet, acked in self.recieveBoxData:
-			print("Seq= {}, Packet= {}, Acked= {}".format(seq, packet, acked))
-		#send data to the application layer
+		
+		# #send data to the application layer
 		self.higherProtocol().data_received(appData)		
 		
 		
 	def recieveAck(self, ackPacket):
 		#packetIndex = 0
 		for Seq, dataPacket, timer, acked in self.sentBoxData:
-			print("ACKnowledgment for Seq= {}, Data packet ACK= {}, Timer= {}, Acked= {} and recieved ACK is= {}".format(Seq, Seq+len(dataPacket.Data), timer, acked, ackPacket.AckNo))
-			if Seq + len(dataPacket.Data) == ackPacket.AckNo and acked is False:#if the ack matches the list value
-				packetIndex = self.sentBoxData.index((Seq, dataPacket, timer, acked)) + 1#index starts with 0, while range starts with 1
-				print("loooooop for {}".format(packetIndex))
+			print("SentBoxList:---- for Seq= {}, Data packet ACK= {}, Acked= {} and recieved ACK is= {}".format(Seq, Seq+len(dataPacket.Data), acked, ackPacket.AckNo))
+			if (Seq + len(dataPacket.Data)) == ackPacket.AckNo and acked is False:#if the ack matches the list value
+				packetIndex = self.sentBoxData.index((Seq, dataPacket, timer, acked))#index starts with 0, while range starts with 1
+
 				for n in range(packetIndex):#find the timer in the dictionary using the seq number
-					print("In loop for Seq= {}, Data packet ACK= {}, Acked= {} and recieved ACK is= {}".format(self.sentBoxData[n][0], self.sentBoxData[n][0]+len(self.sentBoxData[n][1].Data), self.sentBoxData[n][3], ackPacket.AckNo))
 					#cancel all the timer less than the seq number
 					currentTimer = self.sentBoxData[n][2]#timer cancelation
 					currentTimer.cancel()
@@ -229,8 +231,7 @@ class RIP(StackingProtocol):
 					self.sentBoxData[n] = (self.sentBoxData[n][0], self.sentBoxData[n][1], currentTimer, True)
 					#self.timerDict[packetSeq] = timer.cancel()
 				return	
-			else:
-				print("No match this packet= {} : Acked packet= {}".format(len(dataPacket.Data) + Seq, ackPacket.AckNo))				
+						
 
 				
 	def checkPacket(self, packet):
@@ -240,8 +241,10 @@ class RIP(StackingProtocol):
 				if packetSeq == packet.SeqNo:
 					if acked is True:
 						self.sendAck(DataPacket)#acked data packet, resend ACK
+						print("resending ACK since the packet is already acked by the protocol")
 						return False
 					elif acked is False:#for doubliction Data packets
+						print("double Data packets is recieved")
 						return False
 
 		#check Hash
@@ -352,7 +355,10 @@ class RIP(StackingProtocol):
 			self.timHand.start()
 			print("the timer object is: {}".format(self.timHand))
 			print("the packe is sent and next Seq number is:{}".format(sentPacket.SeqNo+1))
-
+		
+		for seq, packet, timer, acked in self.sentBoxData:
+			print("sentBoxData:--- seq= {}, ack= {}, ACKED= {}".format(seq, seq+len(packet.Data), acked))
+			
 		#write packet
 		serPacket = sentPacket.__serialize__()
 		self.transport.write(sentPacket.__serialize__())
@@ -365,9 +371,9 @@ class RIP(StackingProtocol):
 			for seq, packet, timer, acked in self.sentBoxData:
 				if seq == resntPacket.SeqNo:
 					timer.cancel()
+					index = self.sentBoxData.index((seq, packet, timer, acked))
 					pacTimer = Timer(Seconds(self.timeoutValue), self.timeout, packet)
 					pacTimer.start()
-					index = self.sentBoxData.index((seq, packet, timer, acked))
 					self.sentBoxData[index] = (seq, packet, pacTimer, False)#packet seq, packet, timer, acked or not
 					#start timer
 		elif "FIN" in resntPacket.Type.upper():
@@ -382,12 +388,21 @@ class RIP(StackingProtocol):
 			self.timHand = Timer(Seconds(self.timeoutValue), self.timeout, self.sentHand)
 			self.timHand.start()
 			
+		elif "SYN" in resntPacket.Type.upper():
+			self.stateCon = 0
+			print("Im here")
+			self.timHand.cancel()
+			self.timHand = Timer(Seconds(self.timeoutValue), self.timeout, self.sentHand)
+			self.timHand.start()	
+			
 		resendPacket = RIPPacket(Type = resntPacket.Type, SeqNo = resntPacket.SeqNo, AckNo = resntPacket.AckNo, CRC = resntPacket.CRC, Data = resntPacket.Data)
+		print("resend packet: Type = {}, SeqNo = {}, AckNo = {}, CRC = {}".format(resntPacket.Type, resntPacket.SeqNo, resntPacket.AckNo, resntPacket.CRC))
 		self.transport.write(resendPacket.__serialize__())
 
 	
 		
 	def timeout(self, timedPacket):
+		#import pdb; pdb.set_trace()
 		print("\ntimeout\nresend packet {}".format(timedPacket.SeqNo))
 		self.resend(timedPacket)
 
@@ -403,6 +418,7 @@ class RIPclient(RIP):
 		if self.firstCon:
 			print("im first packet")
 			self.firstpacket()
+		#import pdb; pdb.set_trace()	
 		self.stateCon = 1	
 		print("im here in connection made")	
 		
@@ -410,7 +426,7 @@ class RIPclient(RIP):
 	def firstpacket(self):
 		#the start of the handshake
 		print("HandShake start")
-		self.send("SYN ", b"")#SYN sent
+		self.send("SYN", b"")#SYN sent
 		print("First Hand")
 		self.firstCon = False
 				
