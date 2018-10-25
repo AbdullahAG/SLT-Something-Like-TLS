@@ -45,10 +45,10 @@ class RIP(StackingProtocol):
 		print("Received a connection from {}".format(transport.get_extra_info("peername")))
 		self.transport = transport
 		self.PassTransport =  ATPtransport(self.transport, self)
-		import pdb; pdb.set_trace()
+		#import pdb; pdb.set_trace()
 		print("im here in connection made")
-		loop = asyncio.new_event_loop()
-		asyncio.set_event_loop(loop)
+		#loop = asyncio.new_event_loop()
+		#asyncio.set_event_loop(loop)
 		
 		
 	def connection_lost(self, exc):
@@ -343,7 +343,7 @@ class RIP(StackingProtocol):
 		#add packet to the sent list
 		
 		if "DATA" in pacType.upper() or "FIN" in pacType.upper():#not SYN ACK since it will go to the first option
-			pacTimer = Timer(Seconds(self.timeoutValue), self.timeout, sentPacket)
+			pacTimer = Timer(Seconds(self.timeoutValue), self.timeout, sentPacket)#self.timeoutValue = 10 :the RIP layer will wait for 10 seconds until resending the packet
 			pacTimer.start()
 			self.sentBoxData.append((sentPacket.SeqNo, sentPacket, pacTimer, False))#packet seq, packet, timer, acked or not
 			print("the packe is sent and next Seq number is:{}".format(sentPacket.SeqNo+len(sentPacket.Data)))
@@ -396,7 +396,7 @@ class RIP(StackingProtocol):
 			self.timHand.start()	
 			
 		resendPacket = RIPPacket(Type = resntPacket.Type, SeqNo = resntPacket.SeqNo, AckNo = resntPacket.AckNo, CRC = resntPacket.CRC, Data = resntPacket.Data)
-		print("resend packet: Type = {}, SeqNo = {}, AckNo = {}, CRC = {}".format(resntPacket.Type, resntPacket.SeqNo, resntPacket.AckNo, resntPacket.CRC))
+		print("resend packet: Type = {}, SeqNo = {}, AckNo = {},\n CRC = {}".format(resntPacket.Type, resntPacket.SeqNo, resntPacket.AckNo, resntPacket.CRC.decode()))
 		self.transport.write(resendPacket.__serialize__())
 
 	
