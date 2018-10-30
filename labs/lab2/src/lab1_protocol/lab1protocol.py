@@ -1,3 +1,6 @@
+#Team - Abdullah Alghofaili , Prateek Bhatnagar
+
+
 from playground.network.common import StackingProtocol, StackingTransport, StackingProtocolFactory
 from playground.common import Timer, Seconds
 from playground.network.packet import PacketType, FIELD_NOT_SET
@@ -10,7 +13,7 @@ import sys
 
 #packet creation
 class RIPPacket(PacketType):
-	DEFINITION_IDENTIFIER = "RIP.abdullah.packet"
+	DEFINITION_IDENTIFIER = "RIP.abdullah_prateek.packet"
 	DEFINITION_VERSION = "1.0"
 	
 	FIELDS = [
@@ -27,6 +30,7 @@ class RIP(StackingProtocol):
 	def __init__(self):
 		super().__init__()
 		self.transport = None
+		self.identity = None
 		self.timeoutValue = 10#the RIP layer will wait for 10 seconds until resending the packet
 		self.SequenceNo = random.randrange(0, 101, 2)
 		self.stateCon = 0#open server
@@ -45,8 +49,9 @@ class RIP(StackingProtocol):
 		print("Received a connection from {}".format(transport.get_extra_info("peername")))
 		self.transport = transport
 		self.PassTransport =  ATPtransport(self.transport, self)
+		self.identity  = "server"
 		#import pdb; pdb.set_trace()
-		print("im here in connection made")
+		print("im here in connection made in "+self.identity)
 		#loop = asyncio.new_event_loop()
 		#asyncio.set_event_loop(loop)
 		
@@ -61,7 +66,7 @@ class RIP(StackingProtocol):
 	
 				
 	def data_received(self, data):
-		print("data_recieved start")
+		print("data_recieved start from "+self.identity )
 		self._deserializer.update(data)
 		
 		for atppacket in self._deserializer.nextPackets():
@@ -354,7 +359,7 @@ class RIP(StackingProtocol):
 			self.timHand = Timer(Seconds(self.timeoutValue), self.timeout, self.sentHand)
 			self.timHand.start()
 			print("the timer object is: {}".format(self.timHand))
-			print("the packe is sent and next Seq number is:{}".format(sentPacket.SeqNo+1))
+			print("the packe is sent from {} and next Seq number is:{}".format(self.identity, sentPacket.SeqNo+1))
 		
 		for seq, packet, timer, acked in self.sentBoxData:
 			print("sentBoxData:--- seq= {}, ack= {}, ACKED= {}".format(seq, seq+len(packet.Data), acked))
@@ -403,7 +408,7 @@ class RIP(StackingProtocol):
 		
 	def timeout(self, timedPacket):
 		#import pdb; pdb.set_trace()
-		print("\ntimeout\nresend packet {}".format(timedPacket.SeqNo))
+		print("\ntimeout\nresend packet {} to {}".format(timedPacket.SeqNo, self.identity))
 		self.resend(timedPacket)
 
 	
@@ -420,7 +425,8 @@ class RIPclient(RIP):
 			self.firstpacket()
 		#import pdb; pdb.set_trace()	
 		self.stateCon = 1	
-		print("im here in connection made")	
+		self.identity = "client"
+		print("im here in connection made in "+self.identity )	
 		
 	
 	def firstpacket(self):
