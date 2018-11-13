@@ -1,0 +1,166 @@
+<rfc>
+	<front>
+		<title abbrev="PRFC">SLT: Something Like TLS</title>
+		<author fullname="Prateek and Abdullah"></author>
+		<date month="November" year="2018" />
+		<abstract>This memo presents a describtion of SLT protocol as an (RFC) document.</abstract>
+	</front>
+
+	<middle>
+		<section title="Technical background">
+		<t>
+			X.509 - Is a standard defining the format of public key certificates. 
+			X.509 certificates are used in many Internet protocols, including TLS/SSL, which is the basis for HTTPS, the secure protocol for browsing the web.
+			They are also used in offline applications, like electronic signatures. An X.509 certificate contains a public key and an identity (a hostname, or an organization, or an individual),
+			and is either signed by a certificate authority or self-signed.
+			
+			Diffie-Hellman Key Exchange - It establishes a shared secret between two parties that can be used for secret communication for exchanging data over a public network. 
+
+			
+			RSA - (Rivest–Shamir–Adleman) is one of the first public-key cryptosystems and is widely used for secure data transmission.
+			In such a cryptosystem, the encryption key is public and it is different from the decryption key which is kept secret (private).
+			In RSA, this asymmetry is based on the practical difficulty of the factorization of the product of two large prime numbers, the "factoring problem". 
+
+			AES - The Advanced Encryption Standard, or AES, is a symmetric block cipher chosen by the U.S. government to protect classified information and is implemented in software and hardware throughout the world to encrypt sensitive data.
+		</t>
+		</section>
+		<section title="Algorithm">
+		<t>
+			1. Once Connection is established client sends a hello message that contains the client certificate.
+			2. Server uses the client’s public key in the certificate it received to encrypt its own certificate and a random number, RS, sends it to the client.
+			3. The client decrypts the message and uses the server’s public key in the server’s certificate to encrypt its random number ,RC. This is sent to the server.
+			4. At this point each side has received RS and RC. Each side uses these values to create a symmetric master key.
+			5. All data transfer past this point is encrypted using the master key.
+			6. As a final check step the client sends random number R encrypted with the master key to the server as a challenge
+			7. The server sends back the decrypted R to the client to verify Master keys match and that the handshake was successful
+		</t>
+		</section>
+		<section title="Mutual Authentication">
+		<t>
+			Mutual authentication is achieved by utilising the certificates. Utilising RSA encryption - each party has a private and public key, the private key stays with each party while the public key is inserted into the certificate,
+			hence only the owner of the certificate may open anything encrypted using it’s certificate’s public key.
+			First the client sends its certificate to the server- which encrypts its certificate and RS using the client certificate key. The Client then sends back its RC encrypted using the server certificate key to the server.
+			At this point the new master key is created on both sides and the challenge is sent by the client and the server responds to it to confirm that the keys are the same - At this point we can say mutual authentication is complete as the master key would not be the same on both sides if any of the sides was trying to use someone else’s certificate. 
+		</t>
+		</section>
+		<section title="Trust Model">
+		<t>
+			In this model the trust is established based on certificates or certificate chains from a trusted root authority.
+			The root authority will issue a certificate to a party after establishing their identity independently.
+		</t>
+		</section>
+		<section title="Confidentiality">
+		<t>
+			Except for the very first message sent by the client every subsequent message from either party is encrypted in some format.
+			Before we establish a common master key for the session both sides utilise RSA encryption and after the handshake is complete the master key is then used for AES encryption and decryption on both sides of the communication channel.
+			The client and server both share their random numbers asymmetrically encrypted. 
+		</t>
+		</section>
+		<section title="Integrity">
+		<t>
+			Message integrity is ensured  as all the messages utilise some form of encryption after the first message. Furthermore the random seeds from the server and the client [RS and RC] are shared with asymmetric encryption with the other side so they are never visible to any man in the middle.
+
+			Once both sides have the random seeds they use it to create the symmetric master key on each side and we can be confident in the integrity of this key moving forward due to the explanation above.
+
+			Furthermore the use of certificates and establishing a session specific master key ensures that it would not be possible to hijack the connection while it is being secured or after it is secured. 
+		</t>
+		</section>
+		<section title="Algorithm specifications">
+		<t>
+				Structure of each message type:
+		</t>
+		<t>
+		<figure>
+		<artwork>
+<![CDATA[		
+			clientHello
+			 +--------struct-----------+
+			 | msgType		
+			 | ProtocolID
+			 | ClientCertificate
+			 +-------------------------+
+
+			serverHello 
+			+--------struct-----------+
+			| msgType
+			| ProtocolID
+			| ServerCertificate
+			| ServerRandomKey
+			+-------------------------+
+
+			clientResp  
+			+--------struct----------+
+			| msgType
+			| ProtocolID
+			| ClientRandomKey
+			+------------------------+
+
+			clientChallenge 
+			+--------struct----------+
+			| msgType
+			| NONCE
+			+------------------------+
+
+			serverChallenge 
+			+--------struct----------+
+			| msgType
+			| NONCE
+			+------------------------+
+
+			shutdown 
+			+--------struct----------+
+			| msgType
+			+------------------------+
+]]>
+      </artwork>
+        </figure>
+		</t>
+		</section>
+		<section title="SLT handshake">
+		 <t>
+        <figure>
+      <artwork>
+<![CDATA[
+             client                                 server
+             ---------------------------------------------
+
+             +-----------+
+             |clientHello|  ----------------------->
+             +-----------+
+                                          +---------------+
+                                          |    serverHello|
+                                          |randomServerKey|
+                   <--------------------  +---------------+
+                                          |encrypted with |
+                                          |client's public|
+                                          |key            |
+                                          +---------------+
+             +---------------+
+             |randomClientKey|
+             +---------------+
+             |encrypted with |  ------------------->
+             |server's public|
+             |key            |
+             +---------------+
+
+             +---------------+
+             |NONCE          |
+             +---------------+   ------------------>
+             |encrypted with |
+             |the master key |
+             +---------------+
+                                          +---------------+
+                                          |NONCE          |
+                    <-------------------  +---------------+
+                                          |encrypted with |
+                                          |the master key |
+                                          +---------------+
+]]>
+      </artwork>
+        </figure>
+		</t>
+		</section>
+	</middle>
+	<back>
+	</back>
+</rfc>
