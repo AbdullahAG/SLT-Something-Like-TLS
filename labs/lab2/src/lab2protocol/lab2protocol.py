@@ -25,6 +25,7 @@ import random
 import random as rand
 from random import randint
 import sys
+import datetime
 
 
 #packet creation
@@ -63,6 +64,7 @@ class SITH(StackingProtocol):
 		self.the_iv = None # the iv
 		self.write_key = None #wite key
 		self.read_key = None #read key
+		self.certlist = None
 		self.root_serial = 89894
 		#----key generating-----------------------------
 		# Generate a private key for use in the exchange.curvex25519
@@ -87,68 +89,84 @@ class SITH(StackingProtocol):
 
 
 		
+	def datecheck(self,rcerts):
+		for cert in rcerts:
+			now = datetime.datetime.now()
+			if(not cert.not_valid_before<now):
+				return False
+			if(not cert.not_valid_after>=now):
+				return False
+		return True
+
+		
 	def RootcheckCerts(self, recieved_certs):
 		rcerts=[]
 		trustlist={}
+		in_file_root = open("20184_root_signed.cert", "rb")
+		data_root = in_file_root.read()
+		cert_obj_root = x509.load_pem_x509_certificate(data_root, default_backend())
+		issuer = cert_obj_root.issuer		
+
 		for rcert in recieved_certs:
 			rcert_obj = x509.load_pem_x509_certificate(rcert, default_backend())
-			if(rcert_obj.serial_number != self.root_serial):
+			if(rcert_obj.serial_number != cert_obj_root.serial_number):
 					rcerts.append(rcert_obj)
 					trustlist={str(rcert_obj.serial_number):'False'}
-		
-		if(self.cehckwithCRL(rcerts)):
+		if(self.datecheck(rcerts)):
+			if(self.cehckwithCRL(rcerts)):
 
 
-			in_file_root = open("20184_root_signed.cert", "rb")
-			data_root = in_file_root.read()
-			cert_obj_root = x509.load_pem_x509_certificate(data_root, default_backend())
-			issuer = cert_obj_root.issuer
-			allfound = False
-			i=0
-			cert_check = cert_obj_root
-			while(not allfound):
-				print(i)
-				rcert = rcerts[i]
-				if(rcert.issuer == issuer):
-					try:
-						print('I am trying to verify')
-						cert_check.public_key().verify(rcert.signature, rcert.tbs_certificate_bytes,ec.ECDSA(rcert.signature_hash_algorithm))
-						trustlist[str(rcert.serial_number)]= 'True'
-						print('I verified')
-					except:
-						print("OH NO - we gotta blacklist this")
-						self.CRL.append(rcert.serial_number)
-						self.connection_lost()
-						return
-					issuer = rcert.subject
-					cert_check = rcert
-					if('False' in trustlist.values()):
-						if(i+1<len(trustlist)):
+			
+				allfound = False
+				i=0
+				cert_check = cert_obj_root
+				while(not allfound):
+					print(i)
+					rcert = rcerts[i]
+					if(rcert.issuer == issuer):
+						try:
+							print('I am trying to verify')
+							cert_check.public_key().verify(rcert.signature, rcert.tbs_certificate_bytes,ec.ECDSA(rcert.signature_hash_algorithm))
+							trustlist[str(rcert.serial_number)]= 'True'
+							print('I verified')
+						except:
+							print("OH NO - we gotta blacklist this")
+							self.CRL.append(rcert.serial_number)
+							self.connection_lost()
+							return
+						issuer = rcert.subject
+						cert_check = rcert
+						if('False' in trustlist.values()):
+							if(i+1<len(trustlist)):
+								i+=1
+							else:
+								i=0
+						else:
+							allfound = True
+					else:
+						if(i+1 < len(trustlist)):
 							i+=1
 						else:
-							i=0
-					else:
-						allfound = True
+							break
+				print(trustlist)
+				if(allfound):
+					return True
 				else:
-					if(i+1 < len(trustlist)):
-						i+=1
-					else:
-						break
-			print(trustlist)
-			if(allfound):
-				return True
-			else:
-				return False
+					return False
 		
+			else:
+				print("cert found in CRL....quitting")
+				return False
 		else:
-			print("cert found in CRL....quitting")
+			print("cert failed date check....quitting")
 			return False
+
 
 	def connection_lost(self, exc):
 		error_msg = exc.encode()
 		self.sendShutdown(error_msg)
 		print("close connection because ,,, {} ,,,".format(exc))
-		self.higherProtocol().connection_lost(error_msg)
+		self.higherProtocol().connection_lost(exc)
 
 	
 	def sendHello(self):
@@ -188,25 +206,12 @@ class SITH(StackingProtocol):
 		
 		
 	def sendShutdown(self, error_msg):
-		#en_data = self.AEAD_encrypt(error_msg)
-		closePacket = SITHPacket(Type = "CLOSE", Ciphertext = error_msg)
+		en_data = self.AEAD_encrypt(error_msg)
+		closePacket = SITHPacket(Type = "CLOSE", Ciphertext = en_data)
 		self.transport.write(closePacket.__serialize__())
 
 		
-	def AEAD_decrypt(self, Ciphertext):
-		aesgcm = AESGCM(self.read_key)
-		print("the ciphertext is: {}".format(Ciphertext))
-		pt = aesgcm.decrypt(self.the_iv,Ciphertext, None)
 		
-		return pt
-	
-		
-	def AEAD_encrypt(self, text):
-		aesgcm = AESGCM(self.write_key)
-		ct = aesgcm.encrypt(self.the_iv, text, None)
-		print("the ciphertext is: {}".format(ct))
-		return ct
-
 #----------end class------------
 class SithClientProtocol(SITH):
 
@@ -214,10 +219,10 @@ class SithClientProtocol(SITH):
 		print("Received a connection from SITH server")
 		self.transport = transport
 		self.SITHtransport =  ATPtransport(self.transport, self)
-		'''#-----generating the server certificate-----------------
-		in_file = open("800851csr_signed.cert", "rb") # opening for [r]eading as [b]inary
+		#-----generating the server certificate-----------------
+		in_file = open("80085_1_signed.cert", "rb") # opening for [r]eading as [b]inary
 		data_leaf = in_file.read() # if you only wanted to read 512 bytes, do .read(512)
-		self.certlist = ([data_leaf, self.cert_inter, self.cert_root])
+		self.certlist.append(data_leaf)
 		#--------------------------------------------------------------------'''
 		self.sendHello()
 		self.stateCon = 1
@@ -262,8 +267,8 @@ class SithClientProtocol(SITH):
 				#-----------------------------------------
 			
 			elif "CLOSE" in SITHpacket.Type and self.stateCon == 3:
-				#de_data = self.AEAD_decrypt(SITHpacket.Ciphertext)
-				de_data = SITHpacket.Ciphertext.decode()
+				de_data = self.AEAD_decrypt(SITHpacket.Ciphertext).decode()
+				#de_data = SITHpacket.Ciphertext.decode()
 				print("close connection because ,,, {} ,,,".format(de_data))
 				self.higherProtocol().connection_lost(de_data)
 
@@ -273,10 +278,27 @@ class SithClientProtocol(SITH):
 		self.sharedSecret = self.private_key.exchange(self.otherSidePublicKey)
 		#self.sharedSecret = sha256(self.otherSidePublicKey.public_bytes() + bytes(0)) #self.private_key)
 		self.sharedPacketSecret = sha256(self.otherSideHello + self.hello).digest()
-		self.the_iv = sha256(self.sharedSecret + self.sharedPacketSecret).digest()[:12]
+		self.client_iv = sha256(self.sharedSecret + self.sharedPacketSecret).digest()[:12]
+		self.server_iv = sha256(self.sharedSecret + self.sharedPacketSecret).digest()[12:24]
 		self.write_key = sha256(sha256(self.sharedSecret + self.sharedPacketSecret).digest()).digest()[16:]
 		self.read_key = sha256(sha256(self.sharedSecret + self.sharedPacketSecret).digest()).digest()[:16]
-		print("shared secret: {}\n shared packet secret: {}\n write key: {}\n read key: {}\n the iv: {}".format(self.sharedSecret, self.sharedPacketSecret, self.write_key, self.read_key, self.the_iv))
+		print("shared secret: {}\n shared packet secret: {}\n write key: {}\n read key: {}\n client iv: {}\n server iv: {}".format(self.sharedSecret, self.sharedPacketSecret, self.write_key, self.read_key, self.client_iv, self.server_iv))
+		
+	
+	def AEAD_decrypt(self, Ciphertext):
+		aesgcm = AESGCM(self.read_key)
+		print("the ciphertext is: {}".format(Ciphertext))
+		pt = aesgcm.decrypt(self.server_iv, Ciphertext, None)
+		
+		return pt
+	
+		
+	def AEAD_encrypt(self, text):
+		aesgcm = AESGCM(self.write_key)
+		ct = aesgcm.encrypt(self.client_iv, text, None)
+		print("the ciphertext is: {}".format(ct))
+		return ct
+
 
 #----------end class------------
 class SithServerProtocol(SITH):
@@ -285,11 +307,11 @@ class SithServerProtocol(SITH):
 		print("Received a connection from SITH client")
 		self.transport = transport
 		self.SITHtransport = ATPtransport(self.transport, self)
-		'''#-----generating the server certificate-----------------
-		in_file = open("800852csr_signed.cert", "rb") # opening for [r]eading as [b]inary
+		#-----generating the server certificate-----------------
+		in_file = open("80085_2_signed.cert", "rb") # opening for [r]eading as [b]inary
 		data_leaf = in_file.read() # if you only wanted to read 512 bytes, do .read(512)
-		self.certlist = ([data_leaf, self.cert_inter, self.cert_root])
-		#--------------------------------------------------------------------'''
+		self.certlist.append(data_leaf)
+		#--------------------------------------------------------------------
 		print("Received a connection from SITH client")
 
 
@@ -338,8 +360,8 @@ class SithServerProtocol(SITH):
 				#-----------------------------------------
 		
 			elif "CLOSE" in SITHpacket.Type and self.stateCon == 2:
-				#de_data = self.AEAD_decrypt(SITHpacket.Ciphertext)
-				print("close connection because ,,, {} ,,,".format(SITHpacket.Ciphertext))
+				de_data = self.AEAD_decrypt(SITHpacket.Ciphertext).decode()
+				print("close connection because ,,, {} ,,,".format(de_data))
 				self.higherProtocol().connection_lost(de_data)
 				
 					
@@ -349,12 +371,28 @@ class SithServerProtocol(SITH):
 		self.sharedSecret = self.private_key.exchange(self.otherSidePublicKey)
 		#self.sharedSecret = sha256(self.otherSidePublicKey.public_bytes() + bytes(0)) #self.private_key)
 		self.sharedPacketSecret = sha256(self.hello + self.otherSideHello).digest()
-		self.the_iv = sha256(self.sharedSecret+self.sharedPacketSecret).digest()[:12]
+		self.server_iv = sha256(self.sharedSecret + self.sharedPacketSecret).digest()[12:24]		
+		self.client_iv = sha256(self.sharedSecret + self.sharedPacketSecret).digest()[:12]
 		self.write_key = sha256(sha256(self.sharedSecret + self.sharedPacketSecret).digest()).digest()[:16]
 		self.read_key = sha256(sha256(self.sharedSecret + self.sharedPacketSecret).digest()).digest()[16:]
-		print("shared secret: {}\n shared packet secret: {}\n write key: {}\n read key: {}\n the iv: {}".format(self.sharedSecret, self.sharedPacketSecret, self.write_key, self.read_key, self.the_iv))
+		print("shared secret: {}\n shared packet secret: {}\n write key: {}\n read key: {}\n client iv: {}\n server iv: {}".format(self.sharedSecret, self.sharedPacketSecret, self.write_key, self.read_key, self.client_iv, self.server_iv))
 
+
+	def AEAD_decrypt(self, Ciphertext):
+		aesgcm = AESGCM(self.read_key)
+		print("the ciphertext is: {}".format(Ciphertext))
+		pt = aesgcm.decrypt(self.client_iv, Ciphertext, None)
 		
+		return pt
+	
+		
+	def AEAD_encrypt(self, text):
+		aesgcm = AESGCM(self.write_key)
+		ct = aesgcm.encrypt(self.server_iv, text, None)
+		print("the ciphertext is: {}".format(ct))
+		return ct
+	
+	
 #----------end class------------
 class ATPtransport(StackingTransport):
 	def __init__(self, transport, protocol):
