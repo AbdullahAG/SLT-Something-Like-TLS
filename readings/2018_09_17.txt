@@ -1,8 +1,0 @@
-<<<<<<< HEAD
-Interesting:
- The Bell-LaPadula Security Policy has a "no write down" as one of the properties,
-=======
-Interesting:
- The Bell-LaPadula Security Policy has a "no write down" as one of the properties,
->>>>>>> efa1ce2d4b6ea7864ee0d562fb72f7bc694274e1
- so it will prevent programs at a classified level to directly or indirectly write down to unclassified levels.

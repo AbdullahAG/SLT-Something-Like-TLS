@@ -1,6 +1,3 @@
-#Team - Abdullah Alghofaili , Prateek Bhatnagar
-
-
 from playground.network.common import StackingProtocol, StackingTransport, StackingProtocolFactory
 from playground.common import Timer, Seconds
 from playground.network.packet import PacketType, FIELD_NOT_SET
@@ -13,7 +10,7 @@ import sys
 
 #packet creation
 class RIPPacket(PacketType):
-	DEFINITION_IDENTIFIER = "RIP.abdullah_prateek.packet"
+	DEFINITION_IDENTIFIER = "RIP.abdullah.packet"
 	DEFINITION_VERSION = "1.0"
 	
 	FIELDS = [
@@ -25,7 +22,7 @@ class RIPPacket(PacketType):
 	("Data", BUFFER),
 
 	]
-#----------end class------------
+#----------end class------------ $nap^75pW
 class RIP(StackingProtocol):
 	def __init__(self):
 		super().__init__()
@@ -103,6 +100,7 @@ class RIP(StackingProtocol):
 				if self.stateCon == 3:
 					if self.sentBoxData[-1][0]+len(self.sentBoxData[-1][1].Data) == atppacket.AckNo:
 						finTimer = self.sentBoxData[-1][2]
+						print("Timer is canceled")
 						finTimer.cancel()
 						self.sentBoxData[-1] = ((self.sentBoxData[-1][0], self.sentBoxData[-1][1], finTimer, True))
 						self.transport.close()
@@ -226,8 +224,9 @@ class RIP(StackingProtocol):
 		for Seq, dataPacket, timer, acked in self.sentBoxData:
 			print("SentBoxList:---- for Seq= {}, Data packet ACK= {}, Acked= {} and recieved ACK is= {}".format(Seq, Seq+len(dataPacket.Data), acked, ackPacket.AckNo))
 			if (Seq + len(dataPacket.Data)) == ackPacket.AckNo and acked is False:#if the ack matches the list value
-				packetIndex = self.sentBoxData.index((Seq, dataPacket, timer, acked))#index starts with 0, while range starts with 1
-
+				print("It's a match with a sent packet= {}".format(Seq))
+				packetIndex = self.sentBoxData.index((Seq, dataPacket, timer, acked))+1#index starts with 0, while range starts with 1
+				print("the packet index is= {}".format(packetIndex))
 				for n in range(packetIndex):#find the timer in the dictionary using the seq number
 					#cancel all the timer less than the seq number
 					currentTimer = self.sentBoxData[n][2]#timer cancelation
@@ -474,5 +473,5 @@ class ATPtransport(StackingTransport):
 
 
 #----------end class------------
-lab1ClientFactory = StackingProtocolFactory(lambda: RIPclient())
-lab1ServerFactory = StackingProtocolFactory(lambda: RIPserver())
+#ClientFactory = StackingProtocolFactory(lambda: RIPclient())
+#ServerFactory = StackingProtocolFactory(lambda: RIPserver())

@@ -1,6 +1,0 @@
-<<<<<<< HEAD
-It was interesting to read about the different network problems and their controls.
-=======
-It was interesting to read about the different network problems and their controls.
->>>>>>> efa1ce2d4b6ea7864ee0d562fb72f7bc694274e1
-I would try my best to read more about them, especially for Bluetooth.
